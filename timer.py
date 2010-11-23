@@ -16,9 +16,15 @@ import cairo
 import sys
 
 #number of ticks per second
-ticks=5
-talk=15
-discuss=5
+ticks=25
+talk=20
+discuss=10
+
+alerts=5
+
+#Specify your alert file bellow 
+#It can be any video/audio supported by gstreamer
+file = "/usr/share/sounds/gnome/default/alerts/glass.ogg"
 
 #Create a player
 
@@ -51,18 +57,6 @@ class Player:
 			print "Error: %s" % err, debug
 			#loop.quit()
 
-#Execution starts here
-
-#Specify your file bellow 
-#It can be any video/audio supported by gstreamer
-file = "/usr/share/sounds/gnome/default/alerts/bark.ogg"
-
-#player = Player(file)
-#player.run()
-#loop = gobject.MainLoop()
-#loop.run()
-
-
 
 class PresentationTimer:
     def __init__(self):
@@ -71,29 +65,88 @@ class PresentationTimer:
         window.connect("destroy", lambda w: gtk.main_quit())
         self.area = gtk.DrawingArea()
         self.area.set_size_request(480, 480)
-        window.add(self.area)
+        vbox=gtk.VBox()
+        vbox.pack_start(self.area,True,True)
+        hbox=gtk.HBox(True)
+        vbox.pack_end(hbox,False,False)
+        window.add(vbox)
         self.area.connect("expose-event", self.expose)
         self.area.show()
-        if len(sys.argv)>2 :
-            self.talk = int(sys.argv[1])
-            self.discuss = int(sys.argv[2])
-        else :
-            self.talk = talk
-            self.discuss = discuss
-        self.total = 60*ticks*(self.talk+self.discuss)
-        self.talk = 60*ticks*self.talk
-        self.counter = self.total
-        gobject.timeout_add(1000/ticks, self.countdown)
+
+        self.timer=None
+
+        adj1 = gtk.Adjustment(15, 1, 120, 1, 5)
+        spinner1 = gtk.SpinButton(adj1, 0, 0)
+        adj2 = gtk.Adjustment(5, 1, 45, 1, 5)
+        spinner2 = gtk.SpinButton(adj2, 0, 0)
+
+#        adj1.connect("value_changed", self.setupChanged, spinner1, spinner2)
+#        adj2.connect("value_changed", self.setupChanged, spinner1, spinner2)
+
+        self.setupClock(spinner1, spinner2)
+        self.counter = ticks*self.total
+        self.overtime=False
+        
+        button = gtk.Button("Start")
+        button.connect("clicked", self.startClock, spinner1, spinner2)
+        hbox.pack_start(button, False, False)
+
+        hbox1=gtk.HBox(False)
+        hbox.pack_start(hbox1, False, False)
+
+        label=gtk.Label("Talk:")
+        hbox1.pack_start(label,False,False)
+        hbox1.pack_start(spinner1,False,False)
+        
+        hbox1=gtk.HBox(False)
+        hbox.pack_start(hbox1, False, False)
+
+        label=gtk.Label("Discussion:")
+        hbox1.pack_start(label,False,False)
+        hbox1.pack_start(spinner2,False,False)
+
+        button = gtk.Button("Stop")
+        button.connect("clicked", self.stopClock, "Stop button")
+        hbox.pack_end(button, False, False)
+
+        window.show_all()
+
+    def setupClock(self, spinTalk, spinDisc):
+        self.talk = 60*spinTalk.get_value_as_int()
+        self.discuss = 60*spinDisc.get_value_as_int()
+        self.total = self.talk+self.discuss
+        
+
+    def setupChanged(self, wdg, spinTalk, spinDisc):
+        self.setupClock(spinTalk, spinDisc)
+        self.area.queue_draw()
+
+    def startClock(self, wdg, spinTalk, spinDisc):
+        self.setupClock(spinTalk, spinDisc)
+        self.counter = ticks*self.total
+        self.overtime=False
+        print "Starting clock: %dm talk, %dm total" % (self.talk/60, self.total/60) 
+        self.timer=gobject.timeout_add(1000/ticks, self.countdown)
         self.countdown()
-        window.show()
+
+    def stopClock(self,wdg,data=None):
+        self.counter=ticks*self.total
+        self.overtime=False
+        gobject.source_remove(self.timer)
+        self.area.queue_draw()
 
     def expose(self, area, event):
         self.context = area.window.cairo_create()
         self.draw_clock(event.area.width/2, event.area.height/2)
         return False
 
+    def alert(self):
+        player=Player(file)
+        player.run()
+        return True
+
     def countdown(self):
-        if self.counter==self.talk :
+        if self.counter==ticks*self.discuss :
             player=Player(file)
             player.run()
         if self.counter > 0:
@@ -103,7 +156,9 @@ class PresentationTimer:
         else:
             self.area.queue_draw()
             player=Player(file)
+            self.overtime=True
             player.run()
+            self.timer=gobject.timeout_add(1000*alerts, self.alert)
             return False
 
 
@@ -111,8 +166,8 @@ class PresentationTimer:
         self.context.save()
         cx=self.context
         cx.set_line_width(1)
-        t=1.0-1.0*self.counter/self.total
-        c=int(self.total-self.counter)
+        t=1.0-1.0*self.counter/(self.total*ticks)
+        c=int(self.total-self.counter/ticks)
         a=-math.pi/2
         
         r=min(x,y)-10
@@ -144,7 +199,14 @@ class PresentationTimer:
         cx.set_font_size(r/5)
         cx.move_to(x-r/3.3,y+r/2)
         cx.set_source_rgb(1, 0.3, 0.3)
-        cx.show_text("%2d:%02d" % (c/(60*ticks), (c/ticks)%(60)))
+        cx.show_text("%2d:%02d" % (c/60, (c)%(60)))
+        if self.overtime :
+            cx.select_font_face("Arial", 
+                cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+            cx.set_font_size(r/4)
+            cx.move_to(x-r/1.5,y-r/5)
+            cx.set_source_rgb(1, 0, 0)
+            cx.show_text("OVERTIME!")
         self.context.restore()
         return
 
