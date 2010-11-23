@@ -15,15 +15,14 @@ import math
 import cairo
 import sys
 
-#number of ticks per second
+# number of ticks (redraws) per second
 ticks=25
-talk=20
-discuss=10
 
-alerts=5
+# Number of seconds between alerts in overtime
+alerts=30
 
 #Specify your alert file bellow 
-#It can be any video/audio supported by gstreamer
+#It can be any audio supported by gstreamer
 file = "/usr/share/sounds/gnome/default/alerts/glass.ogg"
 
 #Create a player
@@ -74,17 +73,18 @@ class PresentationTimer:
         self.area.show()
 
         self.timer=None
+        self.Talert=None
 
         adj1 = gtk.Adjustment(15, 1, 120, 1, 5)
         spinner1 = gtk.SpinButton(adj1, 0, 0)
         adj2 = gtk.Adjustment(5, 1, 45, 1, 5)
         spinner2 = gtk.SpinButton(adj2, 0, 0)
 
-#        adj1.connect("value_changed", self.setupChanged, spinner1, spinner2)
-#        adj2.connect("value_changed", self.setupChanged, spinner1, spinner2)
+        adj1.connect("value_changed", self.setupChanged, spinner1, spinner2)
+        adj2.connect("value_changed", self.setupChanged, spinner1, spinner2)
 
         self.setupClock(spinner1, spinner2)
-        self.counter = ticks*self.total
+        self.counter = 0
         self.overtime=False
         
         button = gtk.Button("Start")
@@ -123,16 +123,21 @@ class PresentationTimer:
 
     def startClock(self, wdg, spinTalk, spinDisc):
         self.setupClock(spinTalk, spinDisc)
-        self.counter = ticks*self.total
+        self.counter = 0
         self.overtime=False
-        print "Starting clock: %dm talk, %dm total" % (self.talk/60, self.total/60) 
+        #print "Starting clock: %dm talk, %dm total" % (self.talk/60, self.total/60) 
         self.timer=gobject.timeout_add(1000/ticks, self.countdown)
         self.countdown()
 
     def stopClock(self,wdg,data=None):
-        self.counter=ticks*self.total
+        #self.counter=0
         self.overtime=False
-        gobject.source_remove(self.timer)
+        if self.Talert :
+            gobject.source_remove(self.Talert)
+            self.Talert=None
+        if self.timer :
+            gobject.source_remove(self.timer)
+            self.timert=None
         self.area.queue_draw()
 
     def expose(self, area, event):
@@ -146,11 +151,11 @@ class PresentationTimer:
         return True
 
     def countdown(self):
-        if self.counter==ticks*self.discuss :
+        if self.counter==ticks*self.talk:
             player=Player(file)
             player.run()
-        if self.counter > 0:
-            self.counter -= 1
+        if self.counter < self.total*ticks:
+            self.counter += 1
             self.area.queue_draw()
             return True
         else:
@@ -158,7 +163,7 @@ class PresentationTimer:
             player=Player(file)
             self.overtime=True
             player.run()
-            self.timer=gobject.timeout_add(1000*alerts, self.alert)
+            self.Talert=gobject.timeout_add(1000*alerts, self.alert)
             return False
 
 
@@ -166,8 +171,8 @@ class PresentationTimer:
         self.context.save()
         cx=self.context
         cx.set_line_width(1)
-        t=1.0-1.0*self.counter/(self.total*ticks)
-        c=int(self.total-self.counter/ticks)
+        t=1.0*self.counter/(self.total*ticks)
+        c=int(self.counter/ticks)
         a=-math.pi/2
         
         r=min(x,y)-10
