@@ -14,12 +14,13 @@ import gst
 import math
 import cairo
 import sys
+import time
 
 # number of ticks (redraws) per second
-ticks=25
+ticks=10
 
 # Number of seconds between alerts in overtime
-alerts=30
+alerts=20
 
 #Specify your alert file bellow 
 #It can be any audio supported by gstreamer
@@ -74,6 +75,8 @@ class PresentationTimer:
 
         self.timer=None
         self.Talert=None
+        
+        self.clock=gobject.timeout_add(1000, self.updateClock)
 
         adj1 = gtk.Adjustment(15, 1, 120, 1, 5)
         spinner1 = gtk.SpinButton(adj1, 0, 0)
@@ -89,6 +92,10 @@ class PresentationTimer:
         
         button = gtk.Button("Start")
         button.connect("clicked", self.startClock, spinner1, spinner2)
+        hbox.pack_start(button, False, False)
+
+        button = gtk.Button("Pause")
+        button.connect("clicked", self.pauseClock, spinner1, spinner2)
         hbox.pack_start(button, False, False)
 
         hbox1=gtk.HBox(False)
@@ -110,6 +117,9 @@ class PresentationTimer:
         hbox.pack_end(button, False, False)
 
         window.show_all()
+        
+        self.clock=gobject.timeout_add(1000, self.updateClock)
+
 
     def setupClock(self, spinTalk, spinDisc):
         self.talk = 60*spinTalk.get_value_as_int()
@@ -126,6 +136,8 @@ class PresentationTimer:
         self.counter = 0
         self.overtime=False
         #print "Starting clock: %dm talk, %dm total" % (self.talk/60, self.total/60) 
+        if self.timer :
+            gobject.source_remove(self.timer)
         self.timer=gobject.timeout_add(1000/ticks, self.countdown)
         self.countdown()
 
@@ -137,8 +149,25 @@ class PresentationTimer:
             self.Talert=None
         if self.timer :
             gobject.source_remove(self.timer)
-            self.timert=None
+            self.timer=None
         self.area.queue_draw()
+        
+    def pauseClock(self,wdg, spinTalk, spinDisc):
+        if self.timer :
+            gobject.source_remove(self.timer)
+            self.timer=None
+        else :
+            self.timer=gobject.timeout_add(1000/ticks, self.countdown)
+            self.countdown()
+        if self.Talert :
+            gobject.source_remove(self.Talert)
+            self.Talert=None
+        else :
+            self.Talert=gobject.timeout_add(1000*alerts, self.alert)
+
+    def updateClock(self):
+        self.area.queue_draw()
+        return True
 
     def expose(self, area, event):
         self.context = area.window.cairo_create()
@@ -188,21 +217,21 @@ class PresentationTimer:
         cx.set_source_rgb(0.5, 0.4, 1)
         cx.fill()
         cx.arc(x,y,r,0,2*math.pi)
-        cx.set_source_rgb(0, 1, 0)
+        cx.set_source_rgb(0.5, 0.1, 0.1)
         cx.stroke()
-        cx.arc(x,y,r,a,a+2*math.pi*t)
+        cx.arc(x,y,r-1,a,a+2*math.pi*t)
         cx.line_to(x,y)
         cx.close_path()
         cx.set_source_rgba(0.2, 1, 0.2,0.6)
         cx.fill()
-        cx.arc(x,y,r,a+2*math.pi*t,a+2*math.pi*t)
+        cx.arc(x,y,r-1,a+2*math.pi*t,a+2*math.pi*t)
         cx.line_to(x,y)
         cx.set_source_rgb(0,0,0)
         cx.stroke()
         cx.select_font_face("Courier", 
             cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-        cx.set_font_size(r/5)
-        cx.move_to(x-r/3.3,y+r/2)
+        cx.set_font_size(r/3)
+        cx.move_to(x-r/2,y+r/2)
         cx.set_source_rgb(1, 0.3, 0.3)
         cx.show_text("%2d:%02d" % (c/60, (c)%(60)))
         if self.overtime :
@@ -212,6 +241,14 @@ class PresentationTimer:
             cx.move_to(x-r/1.5,y-r/5)
             cx.set_source_rgb(1, 0, 0)
             cx.show_text("OVERTIME!")
+
+        cx.select_font_face("Courier", 
+            cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+        cx.set_font_size(r/8)
+        cx.move_to(0,r/10)
+        cx.set_source_rgb(0.3, 0.3, 1)
+        tm=time.localtime()
+        cx.show_text("%2d:%02d" % (tm.tm_hour, tm.tm_min))
         self.context.restore()
         return
 
