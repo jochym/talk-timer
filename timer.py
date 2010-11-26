@@ -98,8 +98,12 @@ class PresentationTimer:
         button.connect("clicked", self.pauseClock, spinner1, spinner2)
         hbox.pack_start(button, False, False)
 
+        button = gtk.Button("Stop")
+        button.connect("clicked", self.stopClock, "Stop button")
+        hbox.pack_start(button, False, False)
+
         hbox1=gtk.HBox(False)
-        hbox.pack_start(hbox1, False, False)
+        hbox.pack_end(hbox1, False, False)
 
         label=gtk.Label("Talk:")
         hbox1.pack_start(label,False,False)
@@ -112,9 +116,6 @@ class PresentationTimer:
         hbox1.pack_start(label,False,False)
         hbox1.pack_start(spinner2,False,False)
 
-        button = gtk.Button("Stop")
-        button.connect("clicked", self.stopClock, "Stop button")
-        hbox.pack_end(button, False, False)
 
         window.show_all()
         
