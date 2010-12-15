@@ -22,9 +22,13 @@ ticks=10
 # Number of seconds between alerts in overtime
 alerts=20
 
+# Second length in ticks (temporary measure)
+
+oneSecond=990
+
 #Specify your alert file bellow 
 #It can be any audio supported by gstreamer
-file = "/usr/share/sounds/gnome/default/alerts/glass.ogg"
+file = "/home/jochym/Desktop/devel/timer/bell.wav"
 
 #Create a player
 
@@ -76,7 +80,8 @@ class PresentationTimer:
         self.timer=None
         self.Talert=None
         
-        self.clock=gobject.timeout_add(1000, self.updateClock)
+        #self.clock=gobject.timeout_add(oneSecond, self.updateClock)
+        self.clock=None
 
         adj1 = gtk.Adjustment(15, 1, 120, 1, 5)
         spinner1 = gtk.SpinButton(adj1, 0, 0)
@@ -109,9 +114,6 @@ class PresentationTimer:
         hbox1.pack_start(label,False,False)
         hbox1.pack_start(spinner1,False,False)
         
-        hbox1=gtk.HBox(False)
-        hbox.pack_start(hbox1, False, False)
-
         label=gtk.Label("Discussion:")
         hbox1.pack_start(label,False,False)
         hbox1.pack_start(spinner2,False,False)
@@ -119,7 +121,7 @@ class PresentationTimer:
 
         window.show_all()
         
-        self.clock=gobject.timeout_add(1000, self.updateClock)
+        #self.clock=gobject.timeout_add(1000, self.updateClock)
 
 
     def setupClock(self, spinTalk, spinDisc):
@@ -139,7 +141,7 @@ class PresentationTimer:
         #print "Starting clock: %dm talk, %dm total" % (self.talk/60, self.total/60) 
         if self.timer :
             gobject.source_remove(self.timer)
-        self.timer=gobject.timeout_add(1000/ticks, self.countdown)
+        self.timer=gobject.timeout_add(oneSecond/ticks, self.countdown)
         self.countdown()
 
     def stopClock(self,wdg,data=None):
@@ -158,13 +160,13 @@ class PresentationTimer:
             gobject.source_remove(self.timer)
             self.timer=None
         else :
-            self.timer=gobject.timeout_add(1000/ticks, self.countdown)
+            self.timer=gobject.timeout_add(oneSecond/ticks, self.countdown)
             self.countdown()
         if self.Talert :
             gobject.source_remove(self.Talert)
             self.Talert=None
         else :
-            self.Talert=gobject.timeout_add(1000*alerts, self.alert)
+            self.Talert=gobject.timeout_add(oneSecond*alerts, self.alert)
 
     def updateClock(self):
         self.area.queue_draw()
@@ -193,7 +195,7 @@ class PresentationTimer:
             player=Player(file)
             self.overtime=True
             player.run()
-            self.Talert=gobject.timeout_add(1000*alerts, self.alert)
+            self.Talert=gobject.timeout_add(oneSecond*alerts, self.alert)
             return False
 
 
