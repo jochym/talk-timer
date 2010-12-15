@@ -16,19 +16,22 @@ import cairo
 import sys
 import time
 
-#TODO: Timing by ticks does not work well enough. We have to move to the proper clock controled timing.
-#TODO: The wall clock stops when timer is stopped.
 #TODO: All the params should be configurable in the dialog box. This is a goal for the next release after fixing the timing issue.
+#TODO: Implement pause functionality
 
 # number of ticks (redraws) per second
 ticks=10
 
 # Number of seconds between alerts in overtime
-alerts=10
+alerts=30
 
-# Second length in ticks (temporary measure)
+# Obvious but usefull for debugging
 
+# Second length in ms
 oneSecond=1000
+
+# Minute length in seconds
+oneMinute=60
 
 #Specify your alert file bellow 
 #It can be any audio supported by gstreamer
@@ -37,33 +40,31 @@ file = "/usr/share/sounds/gnome/default/alerts/glass.ogg"
 #Create a player
 
 class Player:
-	def __init__(self, file):
-		#Element playbin automatic plays any file
-		self.player = gst.element_factory_make("playbin", "player")
-		#Set the uri to the file
-		self.player.set_property("uri", "file://" + file)
+    def __init__(self, file):
+        #Element playbin automatic plays any file
+        self.player = gst.element_factory_make("playbin", "player")
+        #Set the uri to the file
+        self.player.set_property("uri", "file://" + file)
 
-		#Enable message bus to check for errors in the pipeline
-		bus = self.player.get_bus()
-		bus.add_signal_watch()
-		bus.connect("message", self.on_message)
+        #Enable message bus to check for errors in the pipeline
+        bus = self.player.get_bus()
+        bus.add_signal_watch()
+        bus.connect("message", self.on_message)
 
-	
-	def run(self):
-		self.player.set_state(gst.STATE_PLAYING)
 
-	def on_message(self, bus, message):
-		t = message.type
-		if t == gst.MESSAGE_EOS:
-			#file ended, stop
-			self.player.set_state(gst.STATE_NULL)
-			#loop.quit()
-		elif t == gst.MESSAGE_ERROR:
-			#Error ocurred, print and stop
-			self.player.set_state(gst.STATE_NULL)
-			err, debug = message.parse_error()
-			print "Error: %s" % err, debug
-			#loop.quit()
+    def run(self):
+        self.player.set_state(gst.STATE_PLAYING)
+
+    def on_message(self, bus, message):
+        t = message.type
+        if t == gst.MESSAGE_EOS:
+            #file ended, stop
+            self.player.set_state(gst.STATE_NULL)
+        elif t == gst.MESSAGE_ERROR:
+            #Error ocurred, print and stop
+            self.player.set_state(gst.STATE_NULL)
+            err, debug = message.parse_error()
+            print "Error: %s" % err, debug
 
 
 class PresentationTimer:
@@ -109,9 +110,10 @@ class PresentationTimer:
         button.connect("clicked", self.startClock, spinner1, spinner2)
         hbox.pack_start(button, False, False)
 
-        button = gtk.Button("Pause")
-        button.connect("clicked", self.pauseClock, spinner1, spinner2)
-        hbox.pack_start(button, False, False)
+#TODO No pausing for now
+#        button = gtk.Button("Pause")
+#        button.connect("clicked", self.pauseClock, spinner1, spinner2)
+#        hbox.pack_start(button, False, False)
 
         button = gtk.Button("Stop")
         button.connect("clicked", self.stopClock, "Stop button")
@@ -135,8 +137,8 @@ class PresentationTimer:
 
 
     def setupClock(self, spinTalk, spinDisc):
-        self.talk = 10*spinTalk.get_value_as_int()
-        self.discuss = 10*spinDisc.get_value_as_int()
+        self.talk = oneMinute*spinTalk.get_value_as_int()
+        self.discuss = oneMinute*spinDisc.get_value_as_int()
         self.total = self.talk+self.discuss
         
 
@@ -146,6 +148,9 @@ class PresentationTimer:
 
     def startClock(self, wdg, spinTalk, spinDisc):
         self.setupClock(spinTalk, spinDisc)
+        if self.Talert :
+            gobject.source_remove(self.Talert)
+            self.Talert=None
         self.Tstart = time.time()
         self.now = self.Tstart
         self.overtime = False
@@ -164,29 +169,31 @@ class PresentationTimer:
         self.Tstart = self.now
         self.area.queue_draw()
         
-    #TODO Pausing not implemented yet
+#TODO Pausing not implemented yet
     def pauseClock(self,wdg, spinTalk, spinDisc):
         if self.Talert :
             gobject.source_remove(self.Talert)
             self.Talert=None
         self.running = False
+        self.pause = True
         self.area.queue_draw()
 
     def updateClock(self):
+        # We are first time over talk length
         if (self.running and 
             (time.time() > (self.Tstart + self.talk)) and 
             not self.ringed) :
                 self.ringed = True
-                player=Player(file)
-                player.run()
+                self.alert()
+        # We are first time over total length
         if (self.running and 
             (time.time() > (self.Tstart + self.total)) and 
             not self.overtime):
                 self.overtime = True
                 self.running = False
-                player=Player(file)
-                player.run()
-                self.Talert=gobject.timeout_add(oneSecond*alerts, self.alert)
+                self.alert()
+                if not self.Talert :
+                    self.Talert=gobject.timeout_add(oneSecond*alerts, self.alert)
         self.area.queue_draw()
         return True
 
@@ -199,22 +206,6 @@ class PresentationTimer:
         player=Player(file)
         player.run()
         return True
-
-    def countdown(self):
-        if self.counter==ticks*self.talk:
-            player=Player(file)
-            player.run()
-        if self.counter < self.total*ticks:
-            self.counter += 1
-            self.area.queue_draw()
-            return True
-        else:
-            self.area.queue_draw()
-            player=Player(file)
-            self.overtime=True
-            player.run()
-            self.Talert=gobject.timeout_add(oneSecond*alerts, self.alert)
-            return False
 
 
     def draw_clock(self, x, y):
