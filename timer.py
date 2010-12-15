@@ -16,15 +16,19 @@ import cairo
 import sys
 import time
 
+#TODO: Timing by ticks does not work well enough. We have to move to the proper clock controled timing.
+#TODO: The wall clock stops when timer is stopped.
+#TODO: All the params should be configurable in the dialog box. This is a goal for the next release after fixing the timing issue.
+
 # number of ticks (redraws) per second
 ticks=10
 
 # Number of seconds between alerts in overtime
-alerts=20
+alerts=10
 
 # Second length in ticks (temporary measure)
 
-oneSecond=990
+oneSecond=1000
 
 #Specify your alert file bellow 
 #It can be any audio supported by gstreamer
@@ -64,6 +68,9 @@ class Player:
 
 class PresentationTimer:
     def __init__(self):
+
+#TODO The GUI setup should be moved to the glade definition file.
+
         window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         window.set_title("Presentation Timer")
         window.connect("destroy", lambda w: gtk.main_quit())
@@ -80,8 +87,10 @@ class PresentationTimer:
         self.timer=None
         self.Talert=None
         
-        #self.clock=gobject.timeout_add(oneSecond, self.updateClock)
         self.clock=None
+        self.Tstart=time.time()
+        self.now = self.Tstart
+        self.running = False
 
         adj1 = gtk.Adjustment(15, 1, 120, 1, 5)
         spinner1 = gtk.SpinButton(adj1, 0, 0)
@@ -93,7 +102,8 @@ class PresentationTimer:
 
         self.setupClock(spinner1, spinner2)
         self.counter = 0
-        self.overtime=False
+        self.overtime = False
+        self.ringed = False
         
         button = gtk.Button("Start")
         button.connect("clicked", self.startClock, spinner1, spinner2)
@@ -118,15 +128,15 @@ class PresentationTimer:
         hbox1.pack_start(label,False,False)
         hbox1.pack_start(spinner2,False,False)
 
-
         window.show_all()
         
-        #self.clock=gobject.timeout_add(1000, self.updateClock)
+        # Start the display update clock (ticks/second)
+        self.clock=gobject.timeout_add(oneSecond/ticks, self.updateClock)
 
 
     def setupClock(self, spinTalk, spinDisc):
-        self.talk = 60*spinTalk.get_value_as_int()
-        self.discuss = 60*spinDisc.get_value_as_int()
+        self.talk = 10*spinTalk.get_value_as_int()
+        self.discuss = 10*spinDisc.get_value_as_int()
         self.total = self.talk+self.discuss
         
 
@@ -136,39 +146,47 @@ class PresentationTimer:
 
     def startClock(self, wdg, spinTalk, spinDisc):
         self.setupClock(spinTalk, spinDisc)
-        self.counter = 0
-        self.overtime=False
+        self.Tstart = time.time()
+        self.now = self.Tstart
+        self.overtime = False
+        self.running = True
+        self.ringed = False
         #print "Starting clock: %dm talk, %dm total" % (self.talk/60, self.total/60) 
-        if self.timer :
-            gobject.source_remove(self.timer)
-        self.timer=gobject.timeout_add(oneSecond/ticks, self.countdown)
-        self.countdown()
 
     def stopClock(self,wdg,data=None):
-        #self.counter=0
         self.overtime=False
         if self.Talert :
             gobject.source_remove(self.Talert)
             self.Talert=None
-        if self.timer :
-            gobject.source_remove(self.timer)
-            self.timer=None
+        self.running = False
+        self.ringed = False
+        self.overtime = False
+        self.Tstart = self.now
         self.area.queue_draw()
         
+    #TODO Pausing not implemented yet
     def pauseClock(self,wdg, spinTalk, spinDisc):
-        if self.timer :
-            gobject.source_remove(self.timer)
-            self.timer=None
-        else :
-            self.timer=gobject.timeout_add(oneSecond/ticks, self.countdown)
-            self.countdown()
         if self.Talert :
             gobject.source_remove(self.Talert)
             self.Talert=None
-        else :
-            self.Talert=gobject.timeout_add(oneSecond*alerts, self.alert)
+        self.running = False
+        self.area.queue_draw()
 
     def updateClock(self):
+        if (self.running and 
+            (time.time() > (self.Tstart + self.talk)) and 
+            not self.ringed) :
+                self.ringed = True
+                player=Player(file)
+                player.run()
+        if (self.running and 
+            (time.time() > (self.Tstart + self.total)) and 
+            not self.overtime):
+                self.overtime = True
+                self.running = False
+                player=Player(file)
+                player.run()
+                self.Talert=gobject.timeout_add(oneSecond*alerts, self.alert)
         self.area.queue_draw()
         return True
 
@@ -203,8 +221,13 @@ class PresentationTimer:
         self.context.save()
         cx=self.context
         cx.set_line_width(1)
-        t=1.0*self.counter/(self.total*ticks)
-        c=int(self.counter/ticks)
+        if self.running :
+            self.now=time.time()
+        if self.overtime :
+            self.now = self.Tstart + self.total
+        dT=self.now-self.Tstart
+        c=int(dT)
+        t=dT/self.total
         a=-math.pi/2
         
         r=min(x,y)-10
@@ -251,7 +274,7 @@ class PresentationTimer:
         cx.move_to(0,r/10)
         cx.set_source_rgb(0.3, 0.3, 1)
         tm=time.localtime()
-        cx.show_text("%2d:%02d" % (tm.tm_hour, tm.tm_min))
+        cx.show_text("%2d:%02d:%02d" % (tm.tm_hour, tm.tm_min, tm.tm_sec))
         self.context.restore()
         return
 
