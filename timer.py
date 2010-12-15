@@ -4,6 +4,7 @@
 # [SNIPPET_AUTHOR: Jurjen Stellingwerff <jurjen@stwerff.xs4all.nl>]
 # [SNIPPET_LICENSE: GPL]
 # (L) 2010 Pawel T. Jochym
+# The code below is licensed under GPLv3 or later
 
 import pygtk
 pygtk.require('2.0')
