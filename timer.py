@@ -28,7 +28,7 @@ oneSecond=990
 
 #Specify your alert file bellow 
 #It can be any audio supported by gstreamer
-file = "/home/jochym/Desktop/devel/timer/bell.wav"
+file = "/usr/share/sounds/gnome/default/alerts/glass.ogg"
 
 #Create a player
 
