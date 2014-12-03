@@ -218,7 +218,9 @@ class PresentationTimer:
         if self.overtime :
             self.now = self.Tstart + self.total
         dT=self.now-self.Tstart
-        c=int(dT)
+        c=int(self.total-self.discuss-dT)
+        if c<0 :
+            c=int(self.total-dT)
         t=dT/self.total
         a=-math.pi/2
         
