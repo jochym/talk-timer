@@ -238,7 +238,7 @@ class PresentationTimer:
         if c<0 :
             c=int(self.total-dT)
         t=dT/self.total
-        tleft=self.total-c
+        tover=self.total-c
         a=-math.pi/2
         
         r=min(x,y)-10
@@ -272,8 +272,8 @@ class PresentationTimer:
         cx.set_source_rgb(1, 0.3, 0.3)
         
         if self.overtime:
-            tleft=int(time.time())-self.now
-            if tleft > 0 : cx.show_text("%2d:%02d" % (tleft/60, (tleft)%(60)))
+            tover=int(time.time())-self.now
+            if tover > 0 : cx.show_text("%2d:%02d" % (tover/60, (tover)%(60)))
             if (int(time.time())%2)==0 :
                 cx.select_font_face("Arial", 
                     cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
@@ -282,7 +282,7 @@ class PresentationTimer:
                 cx.set_source_rgb(1, 0, 0)
                 cx.show_text("OVERTIME!")
         else :
-            cx.show_text("%2d:%02d" % (tleft/60, (tleft)%(60)))
+            cx.show_text("%2d:%02d" % (c/60, (c)%(60)))
             
         cx.select_font_face("Monospace", 
             cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
